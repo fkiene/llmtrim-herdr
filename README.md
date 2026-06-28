@@ -18,6 +18,10 @@
   <a href="https://github.com/fkiene/llmtrim"><img src="https://img.shields.io/badge/plugin%20for-llmtrim-informational" alt="plugin for llmtrim"></a>
 </p>
 
+<p align="center">
+  <img src="assets/herdr-llmtrim.png" alt="herdr with the llmtrim savings badge in the sidebar and the live savings dashboard split beside the agent" width="880">
+</p>
+
 ## What is llmtrim?
 
 [llmtrim](https://github.com/fkiene/llmtrim) is a local proxy that sits between your AI tools and the LLM provider. It compresses every outbound request by removing repetitive content and structural waste, then forwards it on. The reply comes back unchanged.

@@ -1,0 +1,115 @@
+# herdr plugin manifest for llmtrim - transparent LLM token-cost proxy.
+#
+# Routing model: global. `llmtrim setup` wires HTTPS_PROXY + the CA into the
+# user's environment once; herdr never calls env_clear(), so every agent pane
+# inherits the proxy and is compressed with no per-pane wiring.
+#
+# Cross-platform: every event/action ships as a shell + PowerShell twin selected
+# by per-entry `platforms`. The .sh side speaks the unix-domain socket, the .ps1
+# side the Windows named pipe; both via bin/herdr-rpc.*.
+
+id = "llmtrim.proxy"
+name = "llmtrim"
+version = "0.1.0"
+min_herdr_version = "0.1.0"
+description = "Transparent proxy that compresses LLM token usage, with a live savings badge and dashboard."
+
+platforms = ["linux", "macos", "windows"]
+
+# --- Lifecycle hooks ---------------------------------------------------------
+
+# First workspace: wire routing (idempotent), start the daemon, show the
+# disclosure once, and launch the per-pane savings poller.
+[[events]]
+on = "workspace.created"
+command = ["bin/bootstrap.sh"]
+platforms = ["linux", "macos"]
+
+[[events]]
+on = "workspace.created"
+command = ["pwsh", "-NoProfile", "-File", "bin/bootstrap.ps1"]
+platforms = ["windows"]
+
+# An agent appeared: verify routing is actually live (env present + proxy
+# reachable), warn once per workspace if not.
+[[events]]
+on = "pane.agent_detected"
+command = ["bin/check-routing.sh"]
+platforms = ["linux", "macos"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["pwsh", "-NoProfile", "-File", "bin/check-routing.ps1"]
+platforms = ["windows"]
+
+# Workspace closed: stop the savings poller started at bootstrap.
+[[events]]
+on = "workspace.closed"
+command = ["bin/stop-annotate.sh"]
+platforms = ["linux", "macos"]
+
+[[events]]
+on = "workspace.closed"
+command = ["pwsh", "-NoProfile", "-File", "bin/stop-annotate.ps1"]
+platforms = ["windows"]
+
+# --- Panes -------------------------------------------------------------------
+
+# Live savings dashboard (ratatui TUI; falls back to a plain loop without a PTY
+# or the `breakdown` feature). Split so it persists beside the agent panes.
+# `direction` is not a manifest field (only a runtime PluginPaneOpenParams field),
+# so the split uses herdr's default direction. The llmtrim binary is itself
+# cross-platform, so this pane needs no twin.
+[[panes]]
+id = "dashboard"
+title = "llmtrim - live savings"
+placement = "split"
+command = ["llmtrim", "status", "--watch"]
+
+# First-run welcome / disclosure (static text held open until the user closes it).
+# Panes have no per-platform command dispatch, and pane ids must be unique, so the
+# twin is two platform-filtered entries with distinct ids.
+[[panes]]
+id = "welcome"
+title = "llmtrim - setup & disclosure"
+placement = "split"
+command = ["sh", "-c", "exec sh \"$HERDR_PLUGIN_ROOT/bin/welcome.sh\""]
+platforms = ["linux", "macos"]
+
+[[panes]]
+id = "welcome-win"
+title = "llmtrim - setup & disclosure"
+placement = "split"
+command = ["pwsh", "-NoProfile", "-Command", "& \"$env:HERDR_PLUGIN_ROOT/bin/welcome.ps1\""]
+platforms = ["windows"]
+
+# --- Actions -----------------------------------------------------------------
+
+[[actions]]
+id = "open-dashboard"
+title = "llmtrim: open savings dashboard"
+command = ["bin/open-dashboard.sh"]
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "open-dashboard-win"
+title = "llmtrim: open savings dashboard"
+command = ["pwsh", "-NoProfile", "-File", "bin/open-dashboard.ps1"]
+platforms = ["windows"]
+
+[[actions]]
+id = "summary"
+title = "llmtrim: session savings summary"
+command = ["bin/summary.sh"]
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "summary-win"
+title = "llmtrim: session savings summary"
+command = ["pwsh", "-NoProfile", "-File", "bin/summary.ps1"]
+platforms = ["windows"]
+
+[[actions]]
+id = "diagnose"
+title = "llmtrim: diagnose"
+command = ["llmtrim", "doctor"]

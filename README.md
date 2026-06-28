@@ -26,7 +26,7 @@ Nothing is sent to any third party. The proxy runs entirely on your machine.
 
 ## What it does
 
-[llmtrim](https://github.com/fkiene/llmtrim) is a local MITM proxy that compresses LLM token usage. This plugin wires it into herdr automatically on workspace creation: it runs `llmtrim setup` (idempotent), starts the daemon, and launches a background poller that pushes a savings badge onto each agent pane. The badge shows `llmtrim -NN%` (gross) or `llmtrim -NN% net` (when cost data is available, net-of-cache), and `llmtrim: off` when the proxy is not running. When net-of-cache cost data is available the badge shows net figures; gross input figures are labelled as gross, never as a net saving.
+[llmtrim](https://github.com/fkiene/llmtrim) is a local MITM proxy that compresses LLM token usage. This plugin wires it into herdr automatically on workspace creation: it runs `llmtrim setup` (idempotent), starts the daemon, and launches a background poller that pushes a savings badge onto each agent pane. The badge is just the percentage so it stays readable in herdr's narrow sidebar: `-NN%` when the proxy is running (the net-of-cache figure when cost data is available, otherwise gross input savings), `off` when the proxy is not running, and `--` before data accumulates.
 
 ## Requirements
 
@@ -73,10 +73,11 @@ The plugin runs `llmtrim setup` automatically on `workspace.created` (it is idem
 
 Each agent pane shows a trailing `custom_status` segment in herdr's navigator/sidebar. The plugin's background poller updates it every 20 seconds:
 
-- `llmtrim -NN% net` when the proxy is running and net-of-cache cost data is available
-- `llmtrim -NN%` when running but only gross savings data is available
-- `llmtrim: --` when running but savings round to zero (early in a session, before data accumulates)
-- `llmtrim: off` when the daemon is not responding
+- `-NN%` when the proxy is running (the net-of-cache figure when cost data is available, otherwise gross input savings)
+- `--` when running but savings round to zero (early in a session, before data accumulates)
+- `off` when the daemon is not responding
+
+The badge is just the percentage, with no "net" label: herdr's sidebar column is too narrow to fit a suffix without clipping. The poller still prefers the conservative net-of-cache figure internally.
 
 ### Dashboard pane
 

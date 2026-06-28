@@ -52,15 +52,18 @@ PANE_ID="${HERDR_PANE_ID:-}"
 # ---------------------------------------------------------------------------
 # Badge builder
 #
+# The badge is just "-NN%" (or "off" / "--"): the sidebar column is too narrow
+# to fit a "net" suffix, so we drop the label and show the percentage alone.
+# We still PREFER the honest net-of-cache figure (.cost.round_trip_pct) and only
+# fall back to gross input savings (.input.saved_pct) when cost data is absent.
+#
 # Three cases:
-#   (1) daemon absent / stopped  ->  "llmtrim: off"
-#   (2) daemon up, cost null     ->  "llmtrim -NN%"   (gross saved_pct; never
-#                                    labelled "net" -- that would be dishonest)
-#   (3) daemon up, cost present  ->  "llmtrim -NN% net"  (round_trip_pct,
-#                                    the honest net-of-cache figure)
+#   (1) daemon absent / stopped  ->  "off"
+#   (2) daemon up, cost present  ->  "-NN%"  (round_trip_pct, net-of-cache)
+#   (3) daemon up, cost null     ->  "-NN%"  (gross saved_pct fallback)
 #
 # The cross-cutting "honest savings" rule forbids showing .cost.round_trip_pct
-# when .cost is null and forbids labelling .input.saved_pct as "net".
+# when .cost is null; with no label, a gross figure is never claimed as net.
 # ---------------------------------------------------------------------------
 
 _build_badge() {
@@ -75,13 +78,13 @@ try:
     with open(path) as _f:
         d = json.load(_f)
 except Exception:
-    print("llmtrim: --")
+    print("--")
     sys.exit(0)
 
 # Case (1): daemon absent or not running.
 daemon = d.get("daemon")
 if daemon is None:
-    print("llmtrim: off")
+    print("off")
     sys.exit(0)
 
 running = False
@@ -91,10 +94,10 @@ elif daemon.get("health") not in (None, "stopped", "degraded"):
     running = True
 
 if not running:
-    print("llmtrim: off")
+    print("off")
     sys.exit(0)
 
-# Case (3): cost present with round_trip_pct -> honest net figure.
+# Case (2): cost present with round_trip_pct -> prefer the honest net figure.
 # Only claim a reduction when it rounds to a positive whole percent: "-0%"
 # would assert savings of zero, which the honest-figure rule forbids.
 cost = d.get("cost")
@@ -103,19 +106,19 @@ if cost is not None:
     if pct is not None:
         val = int(round(float(pct)))
         if val > 0:
-            badge = "llmtrim -{}% net".format(val)
+            badge = "-{}%".format(val)
             badge = re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", "", badge)[:80]
             print(badge)
             sys.exit(0)
 
-# Case (2): cost null -- show gross saved_pct without "net" label.
+# Case (3): cost null -- fall back to gross saved_pct.
 inp = d.get("input") or {}
 saved = inp.get("saved_pct")
 if saved is not None and int(round(float(saved))) > 0:
     val = int(round(float(saved)))
-    badge = "llmtrim -{}%".format(val)
+    badge = "-{}%".format(val)
 else:
-    badge = "llmtrim: --"
+    badge = "--"
 
 badge = re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", "", badge)[:80]
 print(badge)
@@ -139,11 +142,11 @@ while :; do
     # capturing it into a shell variable and passing it to python3 via an env
     # var.  Env + argv share the ARG_MAX limit (~2 MB); a 5-6 MB status payload
     # causes execve to fail with E2BIG, which was causing the badge to always
-    # fall back to "llmtrim: --".  Shell variables and files are not subject to
+    # fall back to "--".  Shell variables and files are not subject to
     # ARG_MAX; only the handoff to a child process is.
     _json_file=$(mktemp 2>/dev/null || printf '%s' "${TMPDIR:-/tmp}/llmtrim_badge_$$.json")
     "$LLMTRIM" status --json 2>/dev/null >"$_json_file" || printf '{}' >"$_json_file"
-    _badge=$(_build_badge "$_json_file" 2>/dev/null || echo "llmtrim: --")
+    _badge=$(_build_badge "$_json_file" 2>/dev/null || echo "--")
     rm -f "$_json_file"
 
     if [ -n "$PANE_ID" ]; then

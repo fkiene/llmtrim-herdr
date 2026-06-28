@@ -1,27 +1,59 @@
-# llmtrim-herdr
+<p align="center">
+  <img src="https://raw.githubusercontent.com/fkiene/llmtrim/main/assets/logo.png" alt="llmtrim" width="420">
+</p>
 
-A herdr plugin that routes all agent HTTPS through the llmtrim compression proxy and shows live per-pane savings without any per-agent configuration.
+<h1 align="center">llmtrim-herdr</h1>
+
+<p align="center">
+  A herdr plugin that brings llmtrim's token compression to every agent pane with no per-agent setup.
+</p>
+
+<p align="center"><em>Route all agent HTTPS through llmtrim from the moment herdr starts.</em></p>
+
+<p align="center">
+  <a href="https://github.com/fkiene/llmtrim-herdr/actions/workflows/lint.yml"><img src="https://github.com/fkiene/llmtrim-herdr/actions/workflows/lint.yml/badge.svg" alt="lint"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MPL--2.0-blue" alt="License: MPL 2.0"></a>
+  <a href="https://github.com/fkiene/llmtrim"><img src="https://img.shields.io/badge/plugin%20for-llmtrim-informational" alt="plugin for llmtrim"></a>
+</p>
+
+## What is llmtrim?
+
+[llmtrim](https://github.com/fkiene/llmtrim) is a local proxy that sits between your AI tools and the LLM provider. It compresses every outbound request by removing repetitive content and structural waste, then forwards it on. The reply comes back unchanged.
+
+Measured live across 112 A/B cases: -31% input tokens, -74% output tokens, no change in answer quality. Round-trip cost dropped 66% on that same set. Overhead is about 5 ms per call; the proxy is a single static binary with no model to load. Savings vary by workload.
+
+Nothing is sent to any third party. The proxy runs entirely on your machine.
 
 ## What it does
 
-[llmtrim](https://github.com/fkiene/llmtrim) is a local MITM proxy that compresses LLM token usage. This plugin wires it into herdr automatically on workspace creation: it runs `llmtrim setup` (idempotent), starts the daemon, and launches a background poller that pushes a savings badge onto each agent pane. The badge shows `llmtrim -NN%` (gross) or `llmtrim -NN% net` (when cost data is available, net-of-cache), and `llmtrim: off` when the proxy is not running. The figures shown are always the honest, net-of-cache values when they are available; gross input compression is labelled accordingly and never presented as a net saving.
+[llmtrim](https://github.com/fkiene/llmtrim) is a local MITM proxy that compresses LLM token usage. This plugin wires it into herdr automatically on workspace creation: it runs `llmtrim setup` (idempotent), starts the daemon, and launches a background poller that pushes a savings badge onto each agent pane. The badge shows `llmtrim -NN%` (gross) or `llmtrim -NN% net` (when cost data is available, net-of-cache), and `llmtrim: off` when the proxy is not running. When net-of-cache cost data is available the badge shows net figures; gross input figures are labelled as gross, never as a net saving.
 
 ## Requirements
 
-- **llmtrim** on your PATH. See the [llmtrim install instructions](https://github.com/fkiene/llmtrim) for your platform.
-- **herdr** >= 0.1.0 (the `min_herdr_version` in the manifest).
+- **llmtrim** installed and on your PATH (see [Install](#install) below).
+- **herdr** >= 0.1.0 (the `min_herdr_version` in the manifest); verified against herdr 0.7.1.
 - **Unix (Linux/macOS):** `jq` and `python3` in PATH. The shell scripts use `python3` for the socket transport and `jq` for JSON construction.
 - **Windows:** PowerShell 7 (`pwsh`). No `jq` or `python3` needed; the `.ps1` twin scripts use `ConvertTo/From-Json` and a `NamedPipeClientStream`.
 
 ## Install
 
-For a published repo:
+First install llmtrim itself, then add the plugin to herdr.
+
+### 1. Install llmtrim
+
+Follow the [llmtrim install instructions](https://github.com/fkiene/llmtrim) for your platform. The quickest path on any OS:
 
 ```
-herdr plugin install <owner>/llmtrim-herdr
+npm install -g @llmtrim/cli@latest && llmtrim setup
 ```
 
-For local development:
+### 2. Install the plugin
+
+```
+herdr plugin install fkiene/llmtrim-herdr
+```
+
+The public install above works once the repo is public; until then, use the local-development form:
 
 ```
 herdr plugin link ./llmtrim-herdr
@@ -33,7 +65,7 @@ If you are unsure which verbs your version of herdr supports, run `herdr plugin 
 
 `llmtrim setup` writes a managed block (`# >>> llmtrim >>>`) into your shell profile that sets `HTTPS_PROXY`, `SSL_CERT_FILE`, and `NODE_EXTRA_CA_CERTS`. Because herdr inherits your process environment and never clears it, every agent pane started in herdr is automatically routed through the proxy with no per-agent configuration.
 
-The plugin runs `llmtrim setup` automatically on `workspace.created` (it is idempotent, so it is safe to call repeatedly). There is one caveat: if herdr was already running before `llmtrim setup` ran the first time, it will not see the new environment variables. The `check-routing` hook detects this on `pane.agent_detected` and warns you once. If the proxy environment is missing, it tells you to relaunch herdr. If the environment is set but the daemon is not responding, it tells you to run `llmtrim start`. The warning clears once routing is confirmed and does not reappear.
+The plugin runs `llmtrim setup` automatically on `workspace.created` (it is idempotent, so it is safe to call repeatedly). One catch: if herdr was already running before `llmtrim setup` ran the first time, it will not see the new environment variables. The `check-routing` hook detects this on `pane.agent_detected` and warns you once. If the proxy environment is missing, it tells you to relaunch herdr. If the environment is set but the daemon is not responding, it tells you to run `llmtrim start`. The warning clears once routing is confirmed and does not reappear.
 
 ## Surfaces
 
@@ -92,15 +124,13 @@ herdr also has a native `type = "plugin_action"` binding, but its `command` fiel
 
 ## Trust and security
 
-Be aware of what this plugin does before you use it.
-
 **The proxy reads your traffic in plaintext.** llmtrim terminates TLS locally so it can inspect and compress requests. This means API keys, tokens, and all agent HTTPS content pass through it in plaintext. The proxy runs only on your machine and writes nothing to the network beyond the forwarded (and optionally compressed) request.
 
 **A local CA private key is generated at `~/.llmtrim/ca.key` (or `$LLMTRIM_HOME/ca.key`).** Guard this file like an SSH private key. Anyone who obtains it can perform a MITM attack on your TLS traffic.
 
 **Trust is environment-level only.** `llmtrim setup` sets `SSL_CERT_FILE` and `NODE_EXTRA_CA_CERTS` in your shell profile (look for the `# >>> llmtrim >>>` block in `~/.zshrc`, `~/.bashrc`, or `~/.profile`). Your OS certificate trust store and your browsers are not modified.
 
-**This plugin bundles no binaries and runs no network install.** Every `bin/*.sh` and `bin/*.ps1` script shells out to the `llmtrim` binary you installed and to herdr's local socket. All JSON sent to herdr's socket is constructed with `jq --arg` or PowerShell `ConvertTo-Json`, not string interpolation, so pane titles or savings values cannot inject into the JSON envelope.
+**This plugin bundles no binaries and runs no network install.** Every `bin/*.sh` and `bin/*.ps1` script shells out to the `llmtrim` binary you installed and to herdr's local socket. All JSON sent to herdr's socket is constructed with `jq --arg` or PowerShell `ConvertTo-Json`, not string interpolation, preventing pane titles or savings values from injecting into the JSON envelope.
 
 ## Uninstall
 

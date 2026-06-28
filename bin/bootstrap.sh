@@ -52,7 +52,7 @@ if [ ! -f "$SENTINEL" ] || [ "$before" != "$after" ]; then
             '{plugin_id:$pid, entrypoint:$ep}')" >/dev/null 2>&1 || true
     notify "llmtrim is active" \
         "Agent HTTPS now routes through a local proxy that reads traffic in plaintext to compress it. Details and undo are in the llmtrim setup pane."
-    printf '%s\n' "$after" > "$SENTINEL" 2>/dev/null || true
+    printf '%s\n' "$after" >"$SENTINEL" 2>/dev/null || true
 fi
 
 # Per-workspace savings poller: reap any stale one, then fork a fresh poller with
@@ -72,7 +72,7 @@ if [ -x "$SELF_DIR/savings-annotate.sh" ]; then
     "$SELF_DIR/savings-annotate.sh" >/dev/null 2>&1 </dev/null &
     # Record the child PID synchronously here so stop-annotate and the next
     # bootstrap can always find it (no race waiting for the poller to self-write).
-    echo $! > "$PIDF" 2>/dev/null || true
+    echo $! >"$PIDF" 2>/dev/null || true
 fi
 
 exit 0

@@ -142,7 +142,7 @@ while :; do
     # fall back to "llmtrim: --".  Shell variables and files are not subject to
     # ARG_MAX; only the handoff to a child process is.
     _json_file=$(mktemp 2>/dev/null || printf '%s' "${TMPDIR:-/tmp}/llmtrim_badge_$$.json")
-    "$LLMTRIM" status --json 2>/dev/null > "$_json_file" || printf '{}' > "$_json_file"
+    "$LLMTRIM" status --json 2>/dev/null >"$_json_file" || printf '{}' >"$_json_file"
     _badge=$(_build_badge "$_json_file" 2>/dev/null || echo "llmtrim: --")
     rm -f "$_json_file"
 
@@ -151,10 +151,10 @@ while :; do
         # regardless of what characters it contains (cross-cutting no-interpolation rule).
         herdr_rpc pane.report_metadata \
             "$(jq -n \
-                --arg  pane_id       "$PANE_ID" \
-                --arg  source        "llmtrim" \
-                --arg  custom_status "$_badge" \
-                --argjson ttl_ms     "$TTL_MS" \
+                --arg pane_id "$PANE_ID" \
+                --arg source "llmtrim" \
+                --arg custom_status "$_badge" \
+                --argjson ttl_ms "$TTL_MS" \
                 '{pane_id:$pane_id,source:$source,custom_status:$custom_status,ttl_ms:$ttl_ms}')" \
             >/dev/null 2>&1 || true
     fi

@@ -30,7 +30,7 @@ notify() { # title, body
 warn_once() { # title, body  -- one warning per workspace until routing confirmed
     [ -f "$WARNED" ] && return 0
     notify "$1" "$2"
-    : > "$WARNED" 2>/dev/null || true
+    : >"$WARNED" 2>/dev/null || true
 }
 
 proxy="${HTTPS_PROXY:-${https_proxy:-}}"
@@ -50,7 +50,7 @@ if [ -n "$LLMTRIM" ]; then
 fi
 
 if [ "$running" = "true" ]; then
-    : > "$CONFIRMED" 2>/dev/null || true
+    : >"$CONFIRMED" 2>/dev/null || true
     rm -f "$WARNED" 2>/dev/null || true
     exit 0
 fi

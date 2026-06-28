@@ -11,6 +11,6 @@ SELF_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
 herdr_rpc plugin.pane.open \
     "$(jq -n \
-        --arg plugin_id  "llmtrim.proxy" \
+        --arg plugin_id "llmtrim.proxy" \
         --arg entrypoint "dashboard" \
         '{plugin_id:$plugin_id, entrypoint:$entrypoint}')" >/dev/null

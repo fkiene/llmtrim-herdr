@@ -2,7 +2,7 @@
 # open-dashboard.sh - action: open (or focus) the llmtrim live savings dashboard.
 #
 # Calls plugin.pane.open via the herdr RPC helper to surface the "dashboard"
-# pane (id "dashboard", running `llmtrim status --watch`).  Actions may exit
+# pane (id "dashboard", running `llmtrim status`).  Actions may exit
 # non-zero on failure; errors are printed to stderr.
 set -u
 

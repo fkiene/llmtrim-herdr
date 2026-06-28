@@ -55,8 +55,9 @@ platforms = ["windows"]
 
 # --- Panes -------------------------------------------------------------------
 
-# Live savings dashboard (ratatui TUI; falls back to a plain loop without a PTY
-# or the `breakdown` feature). Split so it persists beside the agent panes.
+# Live savings dashboard. On a PTY `llmtrim status` opens the ratatui TUI directly
+# (the published binary ships the `breakdown` feature). Split so it persists
+# beside the agent panes.
 # `direction` is not a manifest field (only a runtime PluginPaneOpenParams field),
 # so the split uses herdr's default direction. The llmtrim binary is itself
 # cross-platform, so this pane needs no twin.
@@ -64,7 +65,7 @@ platforms = ["windows"]
 id = "dashboard"
 title = "llmtrim - live savings"
 placement = "split"
-command = ["llmtrim", "status", "--watch"]
+command = ["llmtrim", "status"]
 
 # First-run welcome / disclosure (static text held open until the user closes it).
 # Panes have no per-platform command dispatch, and pane ids must be unique, so the

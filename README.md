@@ -77,7 +77,7 @@ The badge is just the percentage, with no "net" label: herdr's sidebar column is
 
 ### Dashboard pane
 
-The action "llmtrim: open savings dashboard" opens `llmtrim status --watch` in a split pane titled "llmtrim - live savings". Because herdr allocates a real PTY for plugin panes, the ratatui TUI renders correctly. If your installed `llmtrim` binary was built without the `breakdown` feature, `--watch` falls back to a plain scroll loop; the pane still works.
+The action "llmtrim: open savings dashboard" opens `llmtrim status` in a split pane titled "llmtrim - live savings". herdr allocates a real PTY for plugin panes, so the live ratatui dashboard renders correctly.
 
 Close the dashboard with `q` or by closing the pane normally. The process is reaped cleanly.
 

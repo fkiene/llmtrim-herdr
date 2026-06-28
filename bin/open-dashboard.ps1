@@ -3,7 +3,7 @@
 #
 # Windows twin of open-dashboard.sh. Calls plugin.pane.open via the herdr RPC
 # helper to surface the "dashboard" pane (id "dashboard", running
-# `llmtrim status --watch`). Actions may exit non-zero on failure; errors are
+# `llmtrim status`). Actions may exit non-zero on failure; errors are
 # written to the error stream.
 
 . (Join-Path $PSScriptRoot 'herdr-rpc.ps1')

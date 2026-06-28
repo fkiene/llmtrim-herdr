@@ -11,7 +11,7 @@
 id = "llmtrim.proxy"
 name = "llmtrim"
 version = "0.1.0"
-min_herdr_version = "0.1.0"
+min_herdr_version = "0.7.0"
 description = "Transparent proxy that compresses LLM token usage, with a live savings badge and dashboard."
 
 platforms = ["linux", "macos", "windows"]

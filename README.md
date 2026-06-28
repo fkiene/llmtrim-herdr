@@ -37,7 +37,7 @@ Nothing is sent to any third party. The proxy runs entirely on your machine.
 ## Requirements
 
 - **llmtrim** installed and on your PATH (see [Install](#install) below).
-- **herdr** >= 0.1.0 (the `min_herdr_version` in the manifest); verified against herdr 0.7.1.
+- **herdr** >= 0.7.0 (the `min_herdr_version` in the manifest); verified against herdr 0.7.1.
 - **Unix (Linux/macOS):** `jq` and `python3` in PATH. The shell scripts use `python3` for the socket transport and `jq` for JSON construction.
 - **Windows:** PowerShell 7 (`pwsh`). No `jq` or `python3` needed; the `.ps1` twin scripts use `ConvertTo/From-Json` and a `NamedPipeClientStream`.
 

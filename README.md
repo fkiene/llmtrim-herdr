@@ -5,10 +5,12 @@
 <h1 align="center">llmtrim-herdr</h1>
 
 <p align="center">
-  A herdr plugin that brings llmtrim's token compression to every agent pane with no per-agent setup.
+  The same agent answers, for a smaller token bill, automatically across every herdr pane.
 </p>
 
-<p align="center"><em>Route all agent HTTPS through llmtrim from the moment herdr starts.</em></p>
+<p align="center">
+  <sub>Measured across 112 A/B cases; savings vary by workload.</sub>
+</p>
 
 <p align="center">
   <a href="https://github.com/fkiene/llmtrim-herdr/actions/workflows/lint.yml"><img src="https://github.com/fkiene/llmtrim-herdr/actions/workflows/lint.yml/badge.svg" alt="lint"></a>

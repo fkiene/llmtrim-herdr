@@ -55,12 +55,6 @@ npm install -g @llmtrim/cli@latest && llmtrim setup
 herdr plugin install fkiene/llmtrim-herdr
 ```
 
-The public install above works once the repo is public; until then, use the local-development form:
-
-```
-herdr plugin link ./llmtrim-herdr
-```
-
 If you are unsure which verbs your version of herdr supports, run `herdr plugin --help`.
 
 ## How routing works

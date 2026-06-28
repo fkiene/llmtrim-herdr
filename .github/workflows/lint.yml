@@ -1,0 +1,48 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shell:
+    name: shell (POSIX twins)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          shellcheck -s sh bin/*.sh
+
+      - name: parse check (sh -n)
+        run: |
+          for f in bin/*.sh; do
+            sh -n "$f"
+          done
+
+      - name: manifest is valid TOML
+        run: python3 -c "import tomllib; tomllib.load(open('herdr-plugin.toml','rb'))"
+
+  powershell:
+    name: powershell (Windows twins)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+          # Warnings (e.g. PSAvoidUsingWriteHost, intended for the display panes)
+          # are advisory; gate on Error only.
+          $results = Invoke-ScriptAnalyzer -Path bin -Filter *.ps1 -Severity Error
+          $results | Format-Table -AutoSize
+          if ($results.Count -gt 0) { exit 1 }

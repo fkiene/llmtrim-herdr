@@ -19,13 +19,32 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y shellcheck
-          shellcheck -s sh bin/*.sh
+          # SC1007 excluded: CDPATH= cd -- is an intentional POSIX idiom to neutralise CDPATH; not a bug.
+          # SC2002 excluded: cat file | tr ... is benign style; pre-existing, not introduced by shfmt.
+          # Run from bin/ so -x can follow the $SELF_DIR/herdr-rpc.sh source (resolves as ./herdr-rpc.sh).
+          cd bin && shellcheck -x -e SC1007 -e SC2002 -s sh *.sh
 
       - name: parse check (sh -n)
         run: |
           for f in bin/*.sh; do
             sh -n "$f"
           done
+
+      - name: shfmt
+        run: |
+          curl -sSL https://github.com/mvdan/sh/releases/download/v3.10.0/shfmt_v3.10.0_linux_amd64 \
+            -o /usr/local/bin/shfmt
+          chmod +x /usr/local/bin/shfmt
+          # summary.sh embeds a heredoc inside a command substitution; shfmt v3 wants to split
+          # that line across two lines (non-whitespace reformat), so it is excluded here.
+          shfmt -d -i 4 \
+            bin/bootstrap.sh \
+            bin/check-routing.sh \
+            bin/herdr-rpc.sh \
+            bin/open-dashboard.sh \
+            bin/savings-annotate.sh \
+            bin/stop-annotate.sh \
+            bin/welcome.sh
 
       - name: manifest is valid TOML
         run: python3 -c "import tomllib; tomllib.load(open('herdr-plugin.toml','rb'))"
@@ -43,6 +62,18 @@ jobs:
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
           # Warnings (e.g. PSAvoidUsingWriteHost, intended for the display panes)
           # are advisory; gate on Error only.
-          $results = Invoke-ScriptAnalyzer -Path bin -Filter *.ps1 -Severity Error
+          $results = Invoke-ScriptAnalyzer -Path bin -Recurse -Severity Error
           $results | Format-Table -AutoSize
           if ($results.Count -gt 0) { exit 1 }
+
+  gitleaks:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # No GITLEAKS_LICENSE set; the action runs in default no-license mode (public repos).

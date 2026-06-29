@@ -83,10 +83,27 @@ if (-not (Test-Path $Sentinel) -or $sentinelContent -ne $after) {
     try { Set-Content -Path $Sentinel -Value $after -NoNewline -ErrorAction SilentlyContinue } catch {}
 }
 
-# Per-workspace savings poller: reap any stale one, then fork a fresh poller with
+# Per-workspace savings poller: reap any stale one(s), then fork a fresh poller with
 # stdio fully detached (Start-Process spawns a new process that does not inherit
 # the hook's piped stdout/stderr, so the hook's reader threads are not blocked).
 $PidF = Join-Path $State "$Ws.poller.pid"
+
+# Reap by command line, not just the pid file (twin of the `ps` sweep in bootstrap.sh).
+# The pid file path depends on $env:HERDR_PLUGIN_STATE_DIR / temp, which can differ between
+# launches; when it shifts, earlier pollers lose their pid file and pile up. Sweeping every
+# pwsh process whose command line carries this workspace's $Ws tag reaps those orphans too.
+# Scoped to $Ws so other workspaces' live pollers are never touched.
+try {
+    # Anchor $Ws as the final whitespace-delimited argument (the poller's sole arg). A `\b`
+    # boundary would be wrong both ways here: $Ws may end in `.`/`-` (no boundary -> never
+    # matches), and `\bfoo\b` would match `foo-dev` -> kill another workspace's poller. This
+    # mirrors the suffix match in bootstrap.sh (`*"savings-annotate.sh $WS"`).
+    $wsPattern = 'savings-annotate\.ps1.*\s' + [regex]::Escape($Ws) + '\s*$'
+    Get-CimInstance Win32_Process -Filter "Name = 'pwsh.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -match $wsPattern } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+} catch {}
+
 if (Test-Path $PidF) {
     try {
         $oldPid = [int](Get-Content $PidF -Raw -ErrorAction SilentlyContinue)
@@ -102,8 +119,10 @@ if (Test-Path $PidF) {
 $PollerPath = Join-Path $PSScriptRoot 'savings-annotate.ps1'
 if (Test-Path $PollerPath -PathType Leaf) {
     try {
+        # Pass $Ws as the poller's trailing argument so it is identifiable per workspace in
+        # the command-line sweep above; the poller itself ignores argv.
         $proc = Start-Process pwsh `
-            -ArgumentList '-NoProfile', '-File', $PollerPath `
+            -ArgumentList '-NoProfile', '-File', $PollerPath, $Ws `
             -WindowStyle Hidden -PassThru -ErrorAction SilentlyContinue
         if ($null -ne $proc) {
             try { Set-Content -Path $PidF -Value $proc.Id -NoNewline -ErrorAction SilentlyContinue } catch {}

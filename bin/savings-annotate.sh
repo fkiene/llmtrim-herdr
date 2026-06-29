@@ -126,6 +126,40 @@ PY
 }
 
 # ---------------------------------------------------------------------------
+# Herdr liveness
+#
+# The poller is deliberately detached from the bootstrap hook that forks it (its
+# parent exits immediately), so it cannot rely on PPID to know when herdr is gone.
+# It is meant to be reaped by stop-annotate.sh on workspace.closed, but if herdr
+# crashes or is killed that hook never fires and the poller orphans forever --
+# this is how a machine ended up with a dozen stale pollers each pinning a core.
+#
+# The herdr server's control socket ($HERDR_SOCKET_PATH) is the one liveness
+# signal that survives volatile workspace ids and lost pid files: when herdr dies
+# the socket stops accepting connections. We probe it each iteration and exit
+# after a short grace window so a brief herdr restart doesn't kill a live poller.
+# ---------------------------------------------------------------------------
+
+DEAD_PROBES_BEFORE_EXIT=3
+
+_herdr_alive() {
+    # No socket in the environment -> not running under herdr (e.g. a manual test
+    # run). Don't self-reap: there's nothing to be orphaned from.
+    [ -n "${HERDR_SOCKET_PATH:-}" ] || return 0
+    HERDR_SOCKET_PATH="$HERDR_SOCKET_PATH" python3 - <<'PY' 2>/dev/null
+import os, socket, sys
+path = os.environ["HERDR_SOCKET_PATH"]
+try:
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.settimeout(2)
+    s.connect(path)
+    s.close()
+except Exception:
+    sys.exit(1)
+PY
+}
+
+# ---------------------------------------------------------------------------
 # Main poll loop
 # ---------------------------------------------------------------------------
 
@@ -134,7 +168,18 @@ PY
 # first assignment completes.
 trap 'rm -f "${_json_file:-}"' EXIT INT TERM
 
+_dead_probes=0
 while :; do
+    # Self-reap once herdr is unreachable for the grace window. A transient failure
+    # (herdr restart) resets the counter; sustained failure means herdr is gone for
+    # good and no supervisor remains to stop us.
+    if _herdr_alive; then
+        _dead_probes=0
+    else
+        _dead_probes=$((_dead_probes + 1))
+        [ "$_dead_probes" -ge "$DEAD_PROBES_BEFORE_EXIT" ] && exit 0
+    fi
+
     # Wrap the full iteration body. A parse error, RPC failure, or transient
     # llmtrim problem must never exit the loop.
     #

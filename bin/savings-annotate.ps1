@@ -136,10 +136,64 @@ function Get-Badge {
 }
 
 # ---------------------------------------------------------------------------
+# Herdr liveness
+#
+# Twin of _herdr_alive in savings-annotate.sh. The poller is detached from the
+# bootstrap hook that spawned it, so it cannot use a parent process to know when
+# herdr is gone. stop-annotate.ps1 reaps it on workspace.closed, but if herdr
+# crashes that hook never fires and the poller orphans forever (a core pinned per
+# stale poller). The herdr control endpoint ($env:HERDR_SOCKET_PATH, a named pipe
+# on Windows) is the one liveness signal that survives lost pid files: when herdr
+# dies the pipe stops accepting connections. We probe it each iteration and exit
+# after a short grace window so a brief herdr restart doesn't kill a live poller.
+# ---------------------------------------------------------------------------
+
+$DeadProbesBeforeExit = 3
+
+function Test-HerdrAlive {
+    # No socket in the environment -> not running under herdr (e.g. a manual test
+    # run). Don't self-reap: there's nothing to be orphaned from.
+    if ([string]::IsNullOrEmpty($env:HERDR_SOCKET_PATH)) { return $true }
+
+    # Same pipe-name derivation as Invoke-HerdrRpc: \\.\pipe\<name>, a filesystem
+    # path, or a bare name.
+    $raw = $env:HERDR_SOCKET_PATH
+    $pipeName = if ($raw -match '^\\\\\.\\pipe\\(.+)') {
+        $Matches[1]
+    } elseif ($raw -match '^[A-Za-z]:\\|^/') {
+        [System.IO.Path]::GetFileName($raw)
+    } else {
+        $raw
+    }
+
+    $client = New-Object System.IO.Pipes.NamedPipeClientStream(
+        '.', $pipeName, [System.IO.Pipes.PipeDirection]::InOut)
+    try {
+        $client.Connect(2000)
+        return $true
+    } catch {
+        return $false
+    } finally {
+        $client.Dispose()
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Main poll loop
 # ---------------------------------------------------------------------------
 
+$deadProbes = 0
 while ($true) {
+    # Self-reap once herdr is unreachable for the grace window. A transient failure
+    # (herdr restart) resets the counter; sustained failure means herdr is gone and
+    # no supervisor remains to stop us.
+    if (Test-HerdrAlive) {
+        $deadProbes = 0
+    } else {
+        $deadProbes++
+        if ($deadProbes -ge $DeadProbesBeforeExit) { exit 0 }
+    }
+
     try {
         # Run llmtrim status --json. status always exits 0; branch on the JSON
         # content, never on $LASTEXITCODE.

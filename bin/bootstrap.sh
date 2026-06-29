@@ -55,21 +55,31 @@ if [ ! -f "$SENTINEL" ] || [ "$before" != "$after" ]; then
     printf '%s\n' "$after" >"$SENTINEL" 2>/dev/null || true
 fi
 
-# Per-workspace savings poller: reap any stale one, then fork a fresh poller with
+# Per-workspace savings poller: reap any stale one(s), then fork a fresh poller with
 # stdio fully detached (herdr does not reap the process group, but the hook's
 # pipe-reader threads block until the inherited stdout/stderr FDs are released).
+#
+# Reap by command line, not just the pid file. The pid file path depends on
+# $HERDR_PLUGIN_STATE_DIR / $TMPDIR, which can differ between launches; when it
+# shifts, earlier pollers are left with no pid file pointing at them and pile up
+# (this is how a machine accumulated a dozen CPU-pinning pollers). Sweeping every
+# process whose command line carries this workspace's $WS tag reaps those orphans
+# too. Scoped to $WS so other workspaces' live pollers are never touched.
 PIDF="$STATE/$WS.poller.pid"
-if [ -f "$PIDF" ]; then
-    oldpid=$(cat "$PIDF" 2>/dev/null | tr -dc '0-9' || true)
-    # Only signal it if it is still OUR poller: a bare PID can have been recycled
-    # to an unrelated process. Match the command line before killing.
-    if [ -n "$oldpid" ] && ps -p "$oldpid" -o args= 2>/dev/null | grep -q savings-annotate; then
-        kill "$oldpid" 2>/dev/null || true
-    fi
-    rm -f "$PIDF" 2>/dev/null || true
-fi
+# `read -r _pid _args` (default IFS) trims the leading spaces `ps -o pid=` pads with and
+# splits the pid off the front -- `IFS= read` + ${line%% *} left $_pid empty, so the kill
+# was a silent no-op and no orphan was ever reaped. Match the rest of the line ($_args).
+ps -Ao pid=,args= 2>/dev/null | while read -r _pid _args; do
+    case "$_args" in
+        *"savings-annotate.sh $WS") kill "$_pid" 2>/dev/null || true ;;
+    esac
+done
+rm -f "$PIDF" 2>/dev/null || true
+
 if [ -x "$SELF_DIR/savings-annotate.sh" ]; then
-    "$SELF_DIR/savings-annotate.sh" >/dev/null 2>&1 </dev/null &
+    # Pass $WS as the poller's sole argument so it is identifiable per workspace in
+    # `ps` output (the reap above matches on it); the poller itself ignores argv.
+    "$SELF_DIR/savings-annotate.sh" "$WS" >/dev/null 2>&1 </dev/null &
     # Record the child PID synchronously here so stop-annotate and the next
     # bootstrap can always find it (no race waiting for the poller to self-write).
     echo $! >"$PIDF" 2>/dev/null || true

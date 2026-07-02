@@ -71,7 +71,7 @@ PIDF="$STATE/$WS.poller.pid"
 # was a silent no-op and no orphan was ever reaped. Match the rest of the line ($_args).
 ps -Ao pid=,args= 2>/dev/null | while read -r _pid _args; do
     case "$_args" in
-        *"savings-annotate.sh $WS") kill "$_pid" 2>/dev/null || true ;;
+    *"savings-annotate.sh $WS") kill "$_pid" 2>/dev/null || true ;;
     esac
 done
 rm -f "$PIDF" 2>/dev/null || true

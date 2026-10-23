@@ -166,7 +166,12 @@ PY
 # Belt-and-suspenders cleanup. _json_file is assigned inside the loop, so use
 # ${_json_file:-} to avoid an unbound-variable error under set -u before the
 # first assignment completes.
-trap 'rm -f "${_json_file:-}"' EXIT INT TERM
+#
+# INT/TERM must actually exit: a trap that only cleans up makes the shell resume
+# the loop, so stop-annotate.sh / bootstrap.sh `kill` (TERM) never stopped a
+# poller and they piled up. Exit there and let the EXIT trap do the cleanup.
+trap 'rm -f "${_json_file:-}"; [ -n "${_sleep_pid:-}" ] && kill "$_sleep_pid" 2>/dev/null; :' EXIT
+trap 'exit 0' INT TERM
 
 _dead_probes=0
 while :; do
@@ -207,5 +212,10 @@ while :; do
             >/dev/null 2>&1 || true
     fi
 
-    sleep "$POLL_SECS"
+    # Background sleep + wait so a TERM is handled immediately, not after the
+    # full poll interval.
+    sleep "$POLL_SECS" &
+    _sleep_pid=$!
+    wait "$_sleep_pid"
+    _sleep_pid=
 done
